@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useActionSheet } from '@expo/react-native-action-sheet';
 import { useAudit } from '../../src/store/AuditContext';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { Badge } from '../../src/components/Badge';
@@ -10,6 +11,7 @@ import { EngagementSummary } from '../../src/types';
 
 export default function EngagementsScreen() {
   const { loading, getAllSummaries, deleteEngagement, updateEngagement } = useAudit();
+  const { showActionSheetWithOptions } = useActionSheet();
   const router = useRouter();
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={Colors.blue} />;
@@ -19,25 +21,30 @@ export default function EngagementsScreen() {
   );
 
   function openMenu(s: EngagementSummary) {
-    Alert.alert(
-      s.engagement.clientName,
-      s.engagement.fiscalYear + ' · ' + s.engagement.status,
-      [
-        {
-          text: 'Open Engagement',
-          onPress: () => router.push('/engagement/' + s.engagement.id as any),
-        },
-        {
-          text: 'Mark as Complete',
-          onPress: () => updateEngagement(s.engagement.id, { status: 'Complete' }),
-        },
-        {
-          text: 'Delete Engagement',
-          style: 'destructive',
-          onPress: () => confirmDelete(s.engagement.clientName, s.engagement.id),
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
+    const isComplete = s.engagement.status === 'Complete';
+    const options = [
+      'Open Engagement',
+      isComplete ? 'Reopen Engagement' : 'Mark as Complete',
+      'Delete Engagement',
+      'Cancel',
+    ];
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex: 3,
+        destructiveButtonIndex: 2,
+        title: s.engagement.clientName,
+        message: s.engagement.fiscalYear + ' · ' + s.engagement.status,
+        containerStyle: { borderRadius: 16 },
+        textStyle: { fontSize: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
+      },
+      (index) => {
+        if (index === 0) router.push(`/engagement/${s.engagement.id}` as any);
+        if (index === 1) updateEngagement(s.engagement.id, { status: isComplete ? 'In Progress' : 'Complete' });
+        if (index === 2) confirmDelete(s.engagement.clientName, s.engagement.id);
+      }
     );
   }
 
@@ -58,10 +65,9 @@ export default function EngagementsScreen() {
         <TouchableOpacity
           key={s.engagement.id}
           style={styles.card}
-          onPress={() => router.push('/engagement/' + s.engagement.id as any)}
+          onPress={() => router.push(`/engagement/${s.engagement.id}` as any)}
           activeOpacity={0.7}
         >
-          {/* Card header */}
           <View style={styles.cardHeader}>
             <View style={styles.clientInitials}>
               <Text style={styles.initialsText}>{s.engagement.clientName.charAt(0)}</Text>
@@ -82,7 +88,6 @@ export default function EngagementsScreen() {
             </View>
           </View>
 
-          {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <MaterialCommunityIcons name="shield-check-outline" size={14} color={Colors.textSecondary} />
@@ -112,7 +117,7 @@ export default function EngagementsScreen() {
 
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => router.push('/engagement/new')}
+        onPress={() => router.push('/engagement/new' as any)}
         activeOpacity={0.8}
       >
         <MaterialCommunityIcons name="plus" size={20} color={Colors.bgPrimary} />

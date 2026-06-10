@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useActionSheet } from '@expo/react-native-action-sheet';
 import { useAudit } from '../../src/store/AuditContext';
 import { Badge } from '../../src/components/Badge';
 import { ProgressBar } from '../../src/components/ProgressBar';
@@ -19,6 +20,7 @@ const EVIDENCE_STATUSES: EvidenceStatus[] = ['Outstanding', 'Requested', 'Receiv
 export default function EngagementDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { loading, getSummary, state, updateControl, updateEvidence, updateFinding, deleteControl, deleteEvidence, deleteFinding } = useAudit();
+  const { showActionSheetWithOptions } = useActionSheet();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('controls');
   const [exporting, setExporting] = useState(false);
@@ -59,88 +61,88 @@ export default function EngagementDetail() {
     return (today.getTime() - requested.getTime()) / (1000 * 60 * 60 * 24) > 7;
   });
 
-  // ─── Context menus ────────────────────────────────────────────────────────────
+  // ─── Action sheets ────────────────────────────────────────────────────────────
 
   function openControlMenu(ctrl: Control) {
-    Alert.alert(ctrl.name, ctrl.id + ' · ' + ctrl.domain, [
+    const toggleLabel = ctrl.status === 'Tested' ? 'Mark as In Progress' : 'Mark as Tested';
+    const options = ['View / Edit', toggleLabel, 'Delete Control', 'Cancel'];
+    showActionSheetWithOptions(
       {
-        text: 'View / Edit',
-        onPress: () => router.push('/engagement/control/' + ctrl.id as any),
+        options,
+        cancelButtonIndex: 3,
+        destructiveButtonIndex: 2,
+        title: ctrl.name,
+        message: ctrl.id + ' · ' + ctrl.domain,
+        containerStyle: { borderRadius: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
       },
-      {
-        text: ctrl.status === 'Tested' ? 'Mark as In Progress' : 'Mark as Tested',
-        onPress: () => updateControl(ctrl.id, {
+      (index) => {
+        if (index === 0) router.push(`/engagement/control/${ctrl.id}` as any);
+        if (index === 1) updateControl(ctrl.id, {
           status: ctrl.status === 'Tested' ? 'In Progress' : 'Tested',
           testedDate: ctrl.status !== 'Tested' ? new Date().toISOString().split('T')[0] : ctrl.testedDate,
-        }),
-      },
-      {
-        text: 'Delete Control',
-        style: 'destructive',
-        onPress: () => Alert.alert(
-          'Delete Control?',
-          'This cannot be undone.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteControl(ctrl.id) },
-          ]
-        ),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+        });
+        if (index === 2) Alert.alert('Delete Control?', 'This cannot be undone.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => deleteControl(ctrl.id) },
+        ]);
+      }
+    );
   }
 
   function openEvidenceMenu(ev: Evidence) {
-    Alert.alert(ev.name, ev.status, [
+    const toggleLabel = ev.status === 'Received' ? 'Mark as Reviewed' : 'Mark as Received';
+    const options = [toggleLabel, 'Delete Evidence', 'Cancel'];
+    showActionSheetWithOptions(
       {
-        text: ev.status === 'Received' ? 'Mark as Reviewed' : 'Mark as Received',
-        onPress: () => updateEvidence(ev.id, {
+        options,
+        cancelButtonIndex: 2,
+        destructiveButtonIndex: 1,
+        title: ev.name,
+        message: ev.status,
+        containerStyle: { borderRadius: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
+      },
+      (index) => {
+        if (index === 0) updateEvidence(ev.id, {
           status: ev.status === 'Received' ? 'Reviewed' : 'Received',
           receivedDate: ev.status !== 'Received' ? new Date().toISOString().split('T')[0] : ev.receivedDate,
-        }),
-      },
-      {
-        text: 'Delete Evidence',
-        style: 'destructive',
-        onPress: () => Alert.alert(
-          'Delete Evidence?',
-          'This cannot be undone.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteEvidence(ev.id) },
-          ]
-        ),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+        });
+        if (index === 1) Alert.alert('Delete Evidence?', 'This cannot be undone.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => deleteEvidence(ev.id) },
+        ]);
+      }
+    );
   }
 
   function openFindingMenu(f: Finding) {
-    Alert.alert(f.isaReference, f.severity + ' · ' + f.status, [
+    const nextStatus = f.status === 'Open' ? 'Mark as In Remediation' : f.status === 'In Remediation' ? 'Mark as Closed' : 'Reopen';
+    const options = ['View / Edit', nextStatus, 'Delete Finding', 'Cancel'];
+    showActionSheetWithOptions(
       {
-        text: 'View / Edit',
-        onPress: () => router.push('/engagement/finding/' + f.id as any),
+        options,
+        cancelButtonIndex: 3,
+        destructiveButtonIndex: 2,
+        title: f.isaReference,
+        message: f.severity + ' · ' + f.status,
+        containerStyle: { borderRadius: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
       },
-      {
-        text: f.status === 'Open' ? 'Mark as In Remediation' : f.status === 'In Remediation' ? 'Mark as Closed' : 'Reopen',
-        onPress: () => updateFinding(f.id, {
+      (index) => {
+        if (index === 0) router.push(`/engagement/finding/${f.id}` as any);
+        if (index === 1) updateFinding(f.id, {
           status: f.status === 'Open' ? 'In Remediation' : f.status === 'In Remediation' ? 'Closed' : 'Open',
-        }),
-      },
-      {
-        text: 'Delete Finding',
-        style: 'destructive',
-        onPress: () => Alert.alert(
-          'Delete Finding?',
-          'This cannot be undone.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Delete', style: 'destructive', onPress: () => deleteFinding(f.id) },
-          ]
-        ),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+        });
+        if (index === 2) Alert.alert('Delete Finding?', 'This cannot be undone.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => deleteFinding(f.id) },
+        ]);
+      }
+    );
   }
 
   return (
@@ -161,7 +163,6 @@ export default function EngagementDetail() {
       />
       <ScrollView style={styles.container} stickyHeaderIndices={[1]}>
 
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
@@ -200,7 +201,6 @@ export default function EngagementDetail() {
           )}
         </View>
 
-        {/* Tab bar */}
         <View style={styles.tabBar}>
           {(['controls', 'evidence', 'findings'] as Tab[]).map(tab => (
             <TouchableOpacity
@@ -223,21 +223,20 @@ export default function EngagementDetail() {
 
         <View style={styles.tabContent}>
 
-          {/* Add buttons */}
           {activeTab === 'controls' && (
-            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/engagement/control/new?engagementId=' + id as any)}>
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push(`/engagement/control/new?engagementId=${id}` as any)}>
               <MaterialCommunityIcons name="plus" size={16} color={Colors.blue} />
               <Text style={styles.addBtnText}>Add Control</Text>
             </TouchableOpacity>
           )}
           {activeTab === 'evidence' && (
-            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/engagement/evidence/new?engagementId=' + id as any)}>
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push(`/engagement/evidence/new?engagementId=${id}` as any)}>
               <MaterialCommunityIcons name="plus" size={16} color={Colors.blue} />
               <Text style={styles.addBtnText}>Add Evidence</Text>
             </TouchableOpacity>
           )}
           {activeTab === 'findings' && (
-            <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/engagement/finding/new?engagementId=' + id as any)}>
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push(`/engagement/finding/new?engagementId=${id}` as any)}>
               <MaterialCommunityIcons name="plus" size={16} color={Colors.blue} />
               <Text style={styles.addBtnText}>Add Finding</Text>
             </TouchableOpacity>
@@ -271,7 +270,7 @@ export default function EngagementDetail() {
                     <TouchableOpacity
                       key={ctrl.id}
                       style={styles.row}
-                      onPress={() => router.push('/engagement/control/' + ctrl.id as any)}
+                      onPress={() => router.push(`/engagement/control/${ctrl.id}` as any)}
                       activeOpacity={0.7}
                     >
                       <View style={[
@@ -296,7 +295,6 @@ export default function EngagementDetail() {
                   ))}
                 </View>
               ))}
-
               {controls.length === 0 && (
                 <Text style={styles.emptyText}>No controls yet. Tap "Add Control" to begin.</Text>
               )}
@@ -319,15 +317,11 @@ export default function EngagementDetail() {
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                               <Text style={styles.rowTitle}>{ev.name}</Text>
-                              {isOverdue && (
-                                <MaterialCommunityIcons name="alert-circle" size={14} color={Colors.redDark} />
-                              )}
+                              {isOverdue && <MaterialCommunityIcons name="alert-circle" size={14} color={Colors.redDark} />}
                             </View>
                             <Text style={styles.rowMeta}>
-                              {ev.receivedDate
-                                ? 'Received ' + ev.receivedDate
-                                : ev.requestedDate
-                                ? 'Requested ' + ev.requestedDate
+                              {ev.receivedDate ? 'Received ' + ev.receivedDate
+                                : ev.requestedDate ? 'Requested ' + ev.requestedDate
                                 : 'Not yet requested'}
                             </Text>
                             {isOverdue && <Text style={styles.overdueLabel}>Overdue — chase client</Text>}
@@ -362,7 +356,7 @@ export default function EngagementDetail() {
                 <TouchableOpacity
                   key={f.id}
                   style={styles.row}
-                  onPress={() => router.push('/engagement/finding/' + f.id as any)}
+                  onPress={() => router.push(`/engagement/finding/${f.id}` as any)}
                   activeOpacity={0.7}
                 >
                   <View style={{ flex: 1 }}>
