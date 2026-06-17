@@ -36,7 +36,6 @@ export default function EngagementsScreen() {
         title: s.engagement.clientName,
         message: s.engagement.fiscalYear + ' · ' + s.engagement.status,
         containerStyle: { borderRadius: 16 },
-        textStyle: { fontSize: 16 },
         titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
         messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
       },
@@ -50,7 +49,7 @@ export default function EngagementsScreen() {
 
   function confirmDelete(name: string, id: string) {
     Alert.alert(
-      'Delete "' + name + '"?',
+      `Delete "${name}"?`,
       'This will permanently delete all controls, evidence, and findings for this engagement.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -73,7 +72,14 @@ export default function EngagementsScreen() {
               <Text style={styles.initialsText}>{s.engagement.clientName.charAt(0)}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.clientName}>{s.engagement.clientName}</Text>
+              <View style={styles.nameRow}>
+                <Text style={styles.clientName}>{s.engagement.clientName}</Text>
+                {s.engagement.isISA315 && (
+                  <View style={styles.isa315Badge}>
+                    <Text style={styles.isa315Text}>ISA 315</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.meta}>{s.engagement.fiscalYear} · {s.engagement.leadAuditor}</Text>
             </View>
             <View style={styles.cardActions}>
@@ -144,7 +150,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.blueLight, alignItems: 'center', justifyContent: 'center',
   },
   initialsText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.blue },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   clientName: { fontSize: FontSize.md, fontWeight: '500', color: Colors.textPrimary },
+  isa315Badge: {
+    backgroundColor: Colors.purpleLight,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: Radius.full,
+  },
+  isa315Text: { fontSize: 10, fontWeight: '700', color: Colors.purpleDark },
   meta: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   menuBtn: { padding: 2 },

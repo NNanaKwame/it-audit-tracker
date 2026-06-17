@@ -65,6 +65,7 @@ export interface Engagement {
   startDate: string;            // ISO date
   endDate: string | null;
   status: EngagementStatus;
+  isISA315: boolean;
   leadAuditor: string;
   team: string[];
   controlIds: string[];

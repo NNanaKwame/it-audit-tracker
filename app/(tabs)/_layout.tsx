@@ -46,15 +46,6 @@ export default function TabLayout() {
         options={{
           title: 'Findings',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="alert-circle-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="isa"
-        options={{
-          title: 'ISA Docs',
-          tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="file-document-outline" size={size} color={color} />
           ),
         }}
