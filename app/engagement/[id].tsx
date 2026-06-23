@@ -10,16 +10,28 @@ import { useAudit } from '../../src/store/AuditContext';
 import { Badge } from '../../src/components/Badge';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { Colors, DOMAIN_COLORS, FontSize, Radius, Spacing } from '../../src/constants/theme';
-import { ControlDomain, EvidenceStatus, Control, Evidence, Finding } from '../../src/types';
+import { ControlDomain, EvidenceStatus, Control, Evidence, Finding, Milestone } from '../../src/types';
 import { exportEngagementPDF } from '../../src/utils/exportPDF';
+import { getMilestoneStatus } from '../../src/store/auditStore';
 
-type Tab = 'controls' | 'evidence' | 'findings';
+type Tab = 'controls' | 'evidence' | 'findings' | 'timeline';
 const DOMAIN_ORDER: ControlDomain[] = ['Access Management', 'Change Management', 'IT Operations', 'SDLC'];
 const EVIDENCE_STATUSES: EvidenceStatus[] = ['Outstanding', 'Requested', 'Received', 'Reviewed'];
 
+const MILESTONE_STATUS_COLOR: Record<string, string> = {
+  'Upcoming': Colors.blue,
+  'Due Soon': Colors.amberDark,
+  'Overdue': Colors.redDark,
+  'Completed': Colors.tealDark,
+};
+
 export default function EngagementDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { loading, getSummary, state, updateControl, updateEvidence, updateFinding, deleteControl, deleteEvidence, deleteFinding } = useAudit();
+  const {
+    loading, getSummary, state,
+    updateControl, updateEvidence, updateFinding, updateMilestone,
+    deleteControl, deleteEvidence, deleteFinding, deleteMilestone,
+  } = useAudit();
   const { showActionSheetWithOptions } = useActionSheet();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('controls');
@@ -46,6 +58,10 @@ export default function EngagementDetail() {
   const controls = engagement.controlIds.map(cid => state.controls[cid]).filter(Boolean);
   const evidence = engagement.evidenceIds.map(eid => state.evidence[eid]).filter(Boolean);
   const findings = engagement.findingIds.map(fid => state.findings[fid]).filter(Boolean);
+  const milestones = engagement.milestoneIds
+    .map(mid => state.milestones[mid])
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime());
 
   const byDomain = DOMAIN_ORDER.map(domain => ({
     domain,
@@ -60,6 +76,8 @@ export default function EngagementDetail() {
     const requested = new Date(ev.requestedDate);
     return (today.getTime() - requested.getTime()) / (1000 * 60 * 60 * 24) > 7;
   });
+
+  const overdueMilestones = milestones.filter(m => !m.completed && getMilestoneStatus(m) === 'Overdue');
 
   // ─── Action sheets ────────────────────────────────────────────────────────────
 
@@ -145,6 +163,35 @@ export default function EngagementDetail() {
     );
   }
 
+  function openMilestoneMenu(m: Milestone) {
+    const options = [
+      m.completed ? 'Mark as Incomplete' : 'Mark as Completed',
+      'Edit Milestone',
+      'Delete Milestone',
+      'Cancel',
+    ];
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex: 3,
+        destructiveButtonIndex: 2,
+        title: m.title,
+        message: m.phase,
+        containerStyle: { borderRadius: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
+      },
+      (index) => {
+        if (index === 0) updateMilestone(m.id, { completed: !m.completed });
+        if (index === 1) router.push(`/engagement/timeline/${m.id}` as any);
+        if (index === 2) Alert.alert('Delete Milestone?', 'This cannot be undone.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => deleteMilestone(m.id) },
+        ]);
+      }
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -169,7 +216,12 @@ export default function EngagementDetail() {
               <Text style={styles.clientName}>{engagement.clientName}</Text>
               <Text style={styles.meta}>{engagement.fiscalYear} · Lead: {engagement.leadAuditor}</Text>
             </View>
-            <Badge label={engagement.status} />
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Badge label={engagement.status} />
+              {engagement.statusIsAuto && (
+                <Text style={styles.autoFlagText}>Auto-flagged</Text>
+              )}
+            </View>
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>
@@ -199,10 +251,19 @@ export default function EngagementDetail() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {overdueMilestones.length > 0 && (
+            <TouchableOpacity style={styles.overdueBanner} onPress={() => setActiveTab('timeline')}>
+              <MaterialCommunityIcons name="calendar-alert" size={16} color={Colors.redDark} />
+              <Text style={styles.overdueText}>
+                {overdueMilestones.length} milestone{overdueMilestones.length > 1 ? 's are' : ' is'} overdue — tap to review
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.tabBar}>
-          {(['controls', 'evidence', 'findings'] as Tab[]).map(tab => (
+          {(['controls', 'evidence', 'findings', 'timeline'] as Tab[]).map(tab => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.tabActive]}
@@ -213,8 +274,12 @@ export default function EngagementDetail() {
                 {tab === 'findings' ? ' (' + findings.length + ')' : ''}
                 {tab === 'evidence' ? ' (' + evidence.length + ')' : ''}
                 {tab === 'controls' ? ' (' + controls.length + ')' : ''}
+                {tab === 'timeline' ? ' (' + milestones.length + ')' : ''}
               </Text>
               {tab === 'evidence' && overdueEvidence.length > 0 && (
+                <View style={styles.overdueTabDot} />
+              )}
+              {tab === 'timeline' && overdueMilestones.length > 0 && (
                 <View style={styles.overdueTabDot} />
               )}
             </TouchableOpacity>
@@ -239,6 +304,12 @@ export default function EngagementDetail() {
             <TouchableOpacity style={styles.addBtn} onPress={() => router.push(`/engagement/finding/new?engagementId=${id}` as any)}>
               <MaterialCommunityIcons name="plus" size={16} color={Colors.blue} />
               <Text style={styles.addBtnText}>Add Finding</Text>
+            </TouchableOpacity>
+          )}
+          {activeTab === 'timeline' && (
+            <TouchableOpacity style={styles.addBtn} onPress={() => router.push(`/engagement/timeline/new?engagementId=${id}` as any)}>
+              <MaterialCommunityIcons name="plus" size={16} color={Colors.blue} />
+              <Text style={styles.addBtnText}>Add Milestone</Text>
             </TouchableOpacity>
           )}
 
@@ -382,6 +453,75 @@ export default function EngagementDetail() {
               )}
             </View>
           )}
+
+          {/* Timeline tab */}
+          {activeTab === 'timeline' && (
+            <View style={styles.section}>
+              {milestones.length === 0 && (
+                <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+                  <MaterialCommunityIcons name="calendar-blank-outline" size={40} color={Colors.textHint} />
+                  <Text style={[styles.emptyText, { marginTop: 12 }]}>
+                    No milestones yet. Add a custom one, or generate the standard audit phases.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.generateBtn}
+                    onPress={() => router.push(`/engagement/timeline/generate?engagementId=${id}` as any)}
+                  >
+                    <MaterialCommunityIcons name="auto-fix" size={16} color={Colors.bgPrimary} />
+                    <Text style={styles.generateBtnText}>Generate Standard Phases</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {milestones.map((m, idx) => {
+                const status = getMilestoneStatus(m);
+                const due = new Date(m.dueDateTime);
+                const statusColor = MILESTONE_STATUS_COLOR[status];
+                return (
+                  <View key={m.id} style={styles.timelineRow}>
+                    <View style={styles.timelineLeftCol}>
+                      <View style={[styles.timelineDot, { backgroundColor: m.completed ? Colors.teal : statusColor }]}>
+                        {m.completed && <MaterialCommunityIcons name="check" size={12} color={Colors.bgPrimary} />}
+                      </View>
+                      {idx < milestones.length - 1 && <View style={styles.timelineLine} />}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.timelineCard, m.completed && styles.timelineCardCompleted]}
+                      onPress={() => openMilestoneMenu(m)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.timelineCardHeader}>
+                        <View style={styles.phaseBadge}>
+                          <Text style={styles.phaseBadgeText}>{m.phase}</Text>
+                        </View>
+                        {!m.completed && (
+                          <Text style={[styles.timelineStatusText, { color: statusColor }]}>{status}</Text>
+                        )}
+                        {m.completed && (
+                          <MaterialCommunityIcons name="check-circle" size={16} color={Colors.teal} />
+                        )}
+                      </View>
+                      <Text style={[styles.timelineTitle, m.completed && styles.timelineTitleCompleted]}>
+                        {m.title}
+                      </Text>
+                      <View style={styles.timelineMetaRow}>
+                        <MaterialCommunityIcons name="calendar-outline" size={13} color={Colors.textSecondary} />
+                        <Text style={styles.timelineMeta}>
+                          {due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {' · '}
+                          {due.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                        {m.notifyEnabled && !m.completed && (
+                          <MaterialCommunityIcons name="bell-outline" size={13} color={Colors.blue} style={{ marginLeft: 6 }} />
+                        )}
+                      </View>
+                      {m.notes ? <Text style={styles.timelineNotes}>{m.notes}</Text> : null}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
     </>
@@ -394,6 +534,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.md },
   clientName: { fontSize: FontSize.lg, fontWeight: '600', color: Colors.navy },
   meta: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  autoFlagText: { fontSize: 10, color: Colors.redDark, fontWeight: '600' },
   statsRow: { flexDirection: 'row', marginBottom: Spacing.md },
   stat: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: FontSize.xl, fontWeight: '600', color: Colors.textPrimary },
@@ -444,4 +585,35 @@ const styles = StyleSheet.create({
   evidenceNotes: { fontSize: FontSize.xs, color: Colors.amberDark, marginTop: 3 },
   isaRef: { fontSize: FontSize.xs, color: Colors.blue, fontWeight: '600', marginLeft: 'auto' },
   emptyText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.xl },
+  generateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.blue, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, marginTop: Spacing.lg,
+  },
+  generateBtnText: { fontSize: FontSize.sm, color: Colors.bgPrimary, fontWeight: '600' },
+  // Timeline styles
+  timelineRow: { flexDirection: 'row', gap: 12 },
+  timelineLeftCol: { width: 20, alignItems: 'center' },
+  timelineDot: {
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 4,
+  },
+  timelineLine: { width: 2, flex: 1, backgroundColor: Colors.border, marginVertical: 2 },
+  timelineCard: {
+    flex: 1,
+    backgroundColor: Colors.bgPrimary, borderRadius: Radius.md,
+    borderWidth: 0.5, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  timelineCardCompleted: { opacity: 0.6 },
+  timelineCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  phaseBadge: { backgroundColor: Colors.purpleLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.full },
+  phaseBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.purpleDark, textTransform: 'uppercase' },
+  timelineStatusText: { fontSize: FontSize.xs, fontWeight: '600' },
+  timelineTitle: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
+  timelineTitleCompleted: { textDecorationLine: 'line-through', color: Colors.textSecondary },
+  timelineMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  timelineMeta: { fontSize: FontSize.xs, color: Colors.textSecondary },
+  timelineNotes: { fontSize: FontSize.xs, color: Colors.textHint, marginTop: 6, fontStyle: 'italic' },
 });

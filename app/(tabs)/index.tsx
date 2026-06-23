@@ -14,7 +14,7 @@ import { ControlDomain } from '../../src/types';
 const DOMAINS: ControlDomain[] = ['Access Management', 'Change Management', 'IT Operations', 'SDLC'];
 
 export default function DashboardScreen() {
-  const { loading, getGlobalStats, getAllSummaries } = useAudit();
+  const { loading, getGlobalStats, getAllSummaries, getUpcomingMilestones } = useAudit();
   const router = useRouter();
 
   if (loading) {
@@ -23,6 +23,7 @@ export default function DashboardScreen() {
 
   const stats = getGlobalStats();
   const summaries = getAllSummaries();
+  const upcomingMilestones = getUpcomingMilestones().filter(m => m.status !== 'Upcoming' || true).slice(0, 5);
 
   // Aggregate domain progress across all engagements
   const domainTotals = DOMAINS.map(domain => {
@@ -92,6 +93,36 @@ export default function DashboardScreen() {
           );
         })}
       </View>
+
+      {/* Upcoming milestones */}
+      {upcomingMilestones.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Upcoming Milestones</Text>
+          <View style={styles.card}>
+            {upcomingMilestones.map((um, i) => {
+              const due = new Date(um.milestone.dueDateTime);
+              const statusColor = um.status === 'Overdue' ? Colors.redDark : um.status === 'Due Soon' ? Colors.amberDark : Colors.blue;
+              return (
+                <TouchableOpacity
+                  key={um.milestone.id}
+                  style={[styles.milestoneRow, i < upcomingMilestones.length - 1 && styles.domainBorder]}
+                  onPress={() => router.push(`/engagement/${um.milestone.engagementId}` as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.milestoneDot, { backgroundColor: statusColor }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.milestoneTitle}>{um.milestone.title}</Text>
+                    <Text style={styles.milestoneMeta}>
+                      {um.engagementName} · {due.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {due.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.milestoneStatus, { color: statusColor }]}>{um.status}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
 
       {/* Engagements needing attention */}
       {atRisk.length > 0 && (
@@ -167,4 +198,9 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: FontSize.md, fontWeight: '500', color: Colors.textPrimary },
   cardSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: Spacing.sm },
   pctLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 4, textAlign: 'right' },
+  milestoneRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
+  milestoneDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  milestoneTitle: { fontSize: FontSize.sm, fontWeight: '500', color: Colors.textPrimary },
+  milestoneMeta: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  milestoneStatus: { fontSize: FontSize.xs, fontWeight: '600' },
 });

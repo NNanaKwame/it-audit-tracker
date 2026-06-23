@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useAudit } from '../../../src/store/AuditContext';
+import { DateTimePickerField } from '../../../src/components/DateTimePickerField';
 import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
 import { EvidenceStatus } from '../../../src/types';
 
@@ -19,7 +20,7 @@ export default function NewEvidenceScreen() {
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<EvidenceStatus>('Outstanding');
   const [controlId, setControlId] = useState<string | null>(null);
-  const [requestedDate, setRequestedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [requestedDate, setRequestedDate] = useState<Date | null>(new Date());
   const [notes, setNotes] = useState('');
   const [uploadedBy, setUploadedBy] = useState(engagement?.leadAuditor ?? '');
   const [saving, setSaving] = useState(false);
@@ -33,7 +34,7 @@ export default function NewEvidenceScreen() {
       name: name.trim(),
       description: description.trim(),
       status,
-      requestedDate: requestedDate || null,
+      requestedDate: requestedDate ? requestedDate.toISOString().split('T')[0] : null,
       receivedDate: null,
       fileUri: null,
       fileName: null,
@@ -55,7 +56,15 @@ export default function NewEvidenceScreen() {
           <Divider />
           <Field label="Description" value={description} onChange={setDescription} placeholder="What does this evidence support?" multiline />
           <Divider />
-          <Field label="Requested Date" value={requestedDate} onChange={setRequestedDate} placeholder="YYYY-MM-DD" />
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm }}>
+            <DateTimePickerField
+              label="Requested Date"
+              value={requestedDate}
+              onChange={setRequestedDate}
+              mode="date"
+              placeholder="Select requested date"
+            />
+          </View>
           <Divider />
           <Field label="Requested By" value={uploadedBy} onChange={setUploadedBy} placeholder="Auditor name" />
           <Divider />

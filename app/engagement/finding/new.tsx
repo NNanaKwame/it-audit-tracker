@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useAudit } from '../../../src/store/AuditContext';
+import { DateTimePickerField } from '../../../src/components/DateTimePickerField';
 import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
 import { ControlDomain, FindingSeverity } from '../../../src/types';
 
@@ -27,7 +28,7 @@ export default function NewFindingScreen() {
   const [domain, setDomain] = useState<ControlDomain>('Access Management');
   const [owner, setOwner] = useState('');
   const [managementResponse, setManagementResponse] = useState('');
-  const [targetDate, setTargetDate] = useState('');
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [isaReference, setIsaReference] = useState(nextRef);
   const [controlId, setControlId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -44,7 +45,7 @@ export default function NewFindingScreen() {
       domain,
       owner: owner.trim(),
       managementResponse: managementResponse.trim(),
-      targetRemediationDate: targetDate.trim() || null,
+      targetRemediationDate: targetDate ? targetDate.toISOString().split('T')[0] : null,
       status: 'Open',
       isaReference: isaReference.trim(),
     });
@@ -67,7 +68,16 @@ export default function NewFindingScreen() {
           <Divider />
           <Field label="Control Owner" value={owner} onChange={setOwner} placeholder="Name of responsible party" />
           <Divider />
-          <Field label="Target Remediation Date" value={targetDate} onChange={setTargetDate} placeholder="YYYY-MM-DD" />
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm }}>
+            <DateTimePickerField
+              label="Target Remediation Date"
+              value={targetDate}
+              onChange={setTargetDate}
+              mode="date"
+              placeholder="Select target date"
+              minimumDate={new Date()}
+            />
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>Severity</Text>

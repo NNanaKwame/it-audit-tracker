@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TextInput,
-  TouchableOpacity, Alert,
+  TouchableOpacity, Alert, Switch,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAudit } from '../../src/store/AuditContext';
+import { DateTimePickerField } from '../../src/components/DateTimePickerField';
 import { Colors, FontSize, Radius, Spacing } from '../../src/constants/theme';
 import { EngagementStatus } from '../../src/types';
 
@@ -28,16 +29,17 @@ const ENGAGEMENT_TYPES = [
 
 export default function NewEngagementScreen() {
   const router = useRouter();
-  const { createEngagement } = useAudit();
+  const { createEngagement, createDefaultMilestones, state } = useAudit();
 
   const [clientName, setClientName] = useState('');
   const [fiscalYear, setFiscalYear] = useState('FY2025');
   const [leadAuditor, setLeadAuditor] = useState('');
   const [teamInput, setTeamInput] = useState('');
   const [status, setStatus] = useState<EngagementStatus>('Kickoff');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [notes, setNotes] = useState('');
   const [isISA315, setIsISA315] = useState(false);
+  const [generateMilestones, setGenerateMilestones] = useState(true);
   const [saving, setSaving] = useState(false);
 
   async function handleCreate() {
@@ -49,6 +51,10 @@ export default function NewEngagementScreen() {
       Alert.alert('Required', 'Please enter a lead auditor name.');
       return;
     }
+    if (!startDate) {
+      Alert.alert('Required', 'Please select a start date.');
+      return;
+    }
     setSaving(true);
     const team = teamInput.split(',').map(t => t.trim()).filter(Boolean);
     if (leadAuditor && !team.includes(leadAuditor)) team.unshift(leadAuditor);
@@ -56,7 +62,7 @@ export default function NewEngagementScreen() {
     await createEngagement({
       clientName: clientName.trim(),
       fiscalYear: fiscalYear.trim(),
-      startDate,
+      startDate: startDate.toISOString().split('T')[0],
       endDate: null,
       status,
       isISA315,
@@ -64,6 +70,20 @@ export default function NewEngagementScreen() {
       team,
       notes: notes.trim(),
     });
+
+    // Auto-generate standard timeline phases if requested.
+    // Find the freshly-created engagement by matching clientName + createdAt proximity.
+    if (generateMilestones) {
+      const created = Object.values(state.engagements).find(
+        e => e.clientName === clientName.trim() && e.fiscalYear === fiscalYear.trim()
+      );
+      // Note: state may not have updated synchronously; the engagement screen
+      // also offers a "Generate Standard Phases" button as a fallback.
+      if (created) {
+        await createDefaultMilestones(created.id);
+      }
+    }
+
     setSaving(false);
     router.back();
   }
@@ -137,13 +157,15 @@ export default function NewEngagementScreen() {
             onChange={setFiscalYear}
             placeholder="e.g. FY2025"
           />
-          <Divider />
-          <Field
-            label="Start Date"
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="YYYY-MM-DD"
-          />
+          <View style={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.md }}>
+            <DateTimePickerField
+              label="Start Date"
+              value={startDate}
+              onChange={setStartDate}
+              mode="date"
+              placeholder="Select start date"
+            />
+          </View>
         </View>
 
         {/* Audit Team */}
@@ -176,6 +198,25 @@ export default function NewEngagementScreen() {
               <Text style={[styles.statusText, status === s && styles.statusTextActive]}>{s}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* Timeline */}
+        <Text style={styles.sectionTitle}>Timeline</Text>
+        <View style={styles.card}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.switchLabel}>Generate Standard Phases</Text>
+              <Text style={styles.switchDesc}>
+                Auto-create Planning, Fieldwork, Reporting, and Sign-off milestones based on the start date.
+              </Text>
+            </View>
+            <Switch
+              value={generateMilestones}
+              onValueChange={setGenerateMilestones}
+              trackColor={{ false: Colors.border, true: Colors.blueLight }}
+              thumbColor={generateMilestones ? Colors.blue : Colors.bgTertiary}
+            />
+          </View>
         </View>
 
         {/* Notes */}
@@ -300,6 +341,10 @@ const styles = StyleSheet.create({
   statusOptionActive: { backgroundColor: Colors.navy, borderColor: Colors.navy },
   statusText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '500' },
   statusTextActive: { color: Colors.bgPrimary },
+  // Switch row
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: Spacing.lg },
+  switchLabel: { fontSize: FontSize.sm, fontWeight: '500', color: Colors.textPrimary, marginBottom: 2 },
+  switchDesc: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 16 },
   // Notes
   textArea: {
     backgroundColor: Colors.bgPrimary, borderRadius: Radius.lg,

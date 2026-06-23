@@ -12,6 +12,10 @@ export type EngagementStatus = 'Kickoff' | 'In Progress' | 'At Risk' | 'On Track
 
 export type FindingSeverity = 'High' | 'Medium' | 'Low' | 'Informational';
 
+export type MilestoneStatus = 'Upcoming' | 'Due Soon' | 'Overdue' | 'Completed';
+
+export type MilestonePhase = 'Planning' | 'Fieldwork' | 'Reporting' | 'Sign-off' | 'Custom';
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 export interface Control {
@@ -58,6 +62,19 @@ export interface Finding {
   isaReference: string;         // ISA doc reference number
 }
 
+export interface Milestone {
+  id: string;
+  engagementId: string;
+  title: string;
+  phase: MilestonePhase;
+  dueDateTime: string;           // ISO datetime string (date + time combined)
+  completed: boolean;
+  completedAt: string | null;
+  notes: string;
+  notifyEnabled: boolean;
+  createdAt: string;
+}
+
 export interface Engagement {
   id: string;
   clientName: string;
@@ -65,12 +82,15 @@ export interface Engagement {
   startDate: string;            // ISO date
   endDate: string | null;
   status: EngagementStatus;
+  statusIsAuto: boolean;        // true if status was last set automatically (At Risk trigger)
+  manualStatus: EngagementStatus; // the status to revert to once risk conditions clear
   isISA315: boolean;
   leadAuditor: string;
   team: string[];
   controlIds: string[];
   evidenceIds: string[];
   findingIds: string[];
+  milestoneIds: string[];
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -105,4 +125,5 @@ export interface AppState {
   controls: Record<string, Control>;
   evidence: Record<string, Evidence>;
   findings: Record<string, Finding>;
+  milestones: Record<string, Milestone>;
 }

@@ -4,6 +4,7 @@ import {
   Switch, Alert, ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { useAudit } from '../../src/store/AuditContext';
 import { Colors, FontSize, Radius, Spacing } from '../../src/constants/theme';
 import {
@@ -78,6 +79,23 @@ export default function SettingsScreen() {
     Alert.alert('Rescheduled', `${count} deadline reminder${count !== 1 ? 's' : ''} are now active.`);
   }
 
+  async function handleTestNotification() {
+    const granted = await requestNotificationPermissions();
+    if (!granted) {
+      Alert.alert('Permission Required', 'Please enable notifications for IT Audit Tracker in your device Settings.');
+      return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '✅ Test Notification',
+        body: 'If you can see this, notifications are working correctly.',
+        sound: 'default',
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
+    });
+    Alert.alert('Test Scheduled', 'A test notification will appear in 5 seconds. You can lock your phone or switch apps to see it.');
+  }
+
   function handleClearAll() {
     Alert.alert(
       'Clear All Data?',
@@ -145,9 +163,10 @@ export default function SettingsScreen() {
           <View style={styles.settingInfo}>
             <MaterialCommunityIcons name="bell-outline" size={20} color={Colors.blue} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>Deadline Reminders</Text>
+              <Text style={styles.settingLabel}>Deadline & Milestone Reminders</Text>
               <Text style={styles.settingDesc}>
-                Alerts 7 days, 3 days, and on the day of finding remediation deadlines.
+                Findings: alerts 7 days, 3 days, and on the day of remediation deadlines.{'\n'}
+                Milestones: alerts 1 day before and at the exact due time.
               </Text>
             </View>
           </View>
@@ -175,12 +194,20 @@ export default function SettingsScreen() {
             </View>
           </>
         )}
+        <Divider />
+        <TouchableOpacity style={styles.settingRow} onPress={handleTestNotification}>
+          <View style={styles.settingInfo}>
+            <MaterialCommunityIcons name="flask-outline" size={20} color={Colors.purpleDark} />
+            <Text style={styles.settingLabel}>Send Test Notification</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textHint} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.noteRow}>
         <MaterialCommunityIcons name="information-outline" size={14} color={Colors.textHint} />
         <Text style={styles.noteText}>
-          Re-enable notifications after adding new deadlines to keep reminders up to date.
+          Re-enable notifications after adding new deadlines or milestones to keep reminders up to date.
         </Text>
       </View>
 
@@ -200,7 +227,7 @@ export default function SettingsScreen() {
       {/* About */}
       <Text style={styles.sectionTitle}>About</Text>
       <View style={styles.card}>
-        <StatRow icon="information-outline" label="App Version" value="1.0.0 (Phase 2)" />
+        <StatRow icon="information-outline" label="App Version" value="1.1.0" />
         <Divider />
         <StatRow icon="shield-lock-outline" label="SDK" value="Expo SDK 54" />
         <Divider />

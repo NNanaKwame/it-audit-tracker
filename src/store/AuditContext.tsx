@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { AppState, Engagement, Control, Evidence, Finding } from '../types';
+import { AppState, Engagement, Control, Evidence, Finding, Milestone } from '../types';
 import * as Store from '../store/auditStore';
 
 interface AuditContextValue {
   state: AppState;
   loading: boolean;
   // Engagement
-  createEngagement: (data: Omit<Engagement, 'id' | 'controlIds' | 'evidenceIds' | 'findingIds' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  createEngagement: (data: Omit<Engagement, 'id' | 'controlIds' | 'evidenceIds' | 'findingIds' | 'milestoneIds' | 'createdAt' | 'updatedAt' | 'statusIsAuto' | 'manualStatus'>) => Promise<void>;
   updateEngagement: (id: string, patch: Partial<Engagement>) => Promise<void>;
   deleteEngagement: (id: string) => Promise<void>;
   // Control
@@ -21,6 +21,11 @@ interface AuditContextValue {
   createFinding: (data: Omit<Finding, 'id'>) => Promise<void>;
   updateFinding: (id: string, patch: Partial<Finding>) => Promise<void>;
   deleteFinding: (id: string) => Promise<void>;
+  // Milestone
+  createMilestone: (data: Omit<Milestone, 'id' | 'createdAt' | 'completed' | 'completedAt'>) => Promise<void>;
+  updateMilestone: (id: string, patch: Partial<Milestone>) => Promise<void>;
+  deleteMilestone: (id: string) => Promise<void>;
+  createDefaultMilestones: (engagementId: string) => Promise<void>;
   // Data management
   clearAllData: () => Promise<void>;
   // Computed
@@ -28,12 +33,13 @@ interface AuditContextValue {
   getAllSummaries: () => ReturnType<typeof Store.getAllSummaries>;
   getGlobalStats: () => ReturnType<typeof Store.getGlobalStats>;
   getOverdueEvidence: () => ReturnType<typeof Store.getOverdueEvidence>;
+  getUpcomingMilestones: () => ReturnType<typeof Store.getUpcomingMilestones>;
 }
 
 const AuditContext = createContext<AuditContextValue | null>(null);
 
 export function AuditProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>({ engagements: {}, controls: {}, evidence: {}, findings: {} });
+  const [state, setState] = useState<AppState>({ engagements: {}, controls: {}, evidence: {}, findings: {}, milestones: {} });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,6 +68,10 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     createFinding: wrap(Store.createFinding) as any,
     updateFinding: (id, patch) => wrap(Store.updateFinding)(id, patch),
     deleteFinding: (id) => wrap(Store.deleteFinding)(id),
+    createMilestone: wrap(Store.createMilestone) as any,
+    updateMilestone: (id, patch) => wrap(Store.updateMilestone)(id, patch),
+    deleteMilestone: (id) => wrap(Store.deleteMilestone)(id),
+    createDefaultMilestones: (engagementId) => wrap(Store.createDefaultMilestones)(engagementId),
     clearAllData: async () => {
       const next = await Store.clearAllData();
       setState(next);
@@ -70,6 +80,7 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     getAllSummaries: () => Store.getAllSummaries(state),
     getGlobalStats: () => Store.getGlobalStats(state),
     getOverdueEvidence: () => Store.getOverdueEvidence(state),
+    getUpcomingMilestones: () => Store.getUpcomingMilestones(state),
   };
 
   return <AuditContext.Provider value={value}>{children}</AuditContext.Provider>;

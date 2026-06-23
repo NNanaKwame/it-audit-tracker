@@ -47,6 +47,18 @@ export default function RootLayout() {
             name="engagement/finding/new"
             options={{ title: 'Add Finding', presentation: 'modal' }}
           />
+          <Stack.Screen
+            name="engagement/timeline/new"
+            options={{ title: 'Add Milestone', presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="engagement/timeline/[id]"
+            options={{ title: 'Edit Milestone', presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="engagement/timeline/generate"
+            options={{ title: 'Standard Phases', presentation: 'modal' }}
+          />
         </Stack>
       </AuditProvider>
     </ActionSheetProvider>
