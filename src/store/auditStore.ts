@@ -13,13 +13,28 @@ const STORAGE_KEY = 'it_audit_tracker_state';
 function migrateState(raw: any): AppState {
   const engagements: Record<string, Engagement> = {};
   Object.values(raw.engagements ?? {}).forEach((e: any) => {
-    engagements[e.id] = {
+    const merged: Engagement = {
       milestoneIds: [],
       statusIsAuto: false,
       manualStatus: e.status ?? 'Kickoff',
       isISA315: false,
       ...e,
     };
+
+    // Self-heal a known bad combination: status is "At Risk" but statusIsAuto
+    // is false (so the auto-engine will never re-evaluate it) and/or
+    // manualStatus is itself "At Risk" (so even a manual revert would loop
+    // back to "At Risk"). Treat any "At Risk" status found on load as
+    // auto-flagged so the engine takes over and can revert it properly once
+    // risk conditions are re-checked.
+    if (merged.status === 'At Risk') {
+      merged.statusIsAuto = true;
+      if (merged.manualStatus === 'At Risk' || !merged.manualStatus) {
+        merged.manualStatus = 'In Progress';
+      }
+    }
+
+    engagements[merged.id] = merged;
   });
 
   return {
@@ -36,7 +51,19 @@ function migrateState(raw: any): AppState {
 export async function loadState(): Promise<AppState> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) return migrateState(JSON.parse(raw));
+    if (raw) {
+      let state = migrateState(JSON.parse(raw));
+      // Re-evaluate auto-status for every engagement on load. This catches
+      // any engagement whose risk conditions cleared while the app was
+      // closed (e.g. a finding was the only thing keeping it "At Risk" and
+      // hasn't been re-checked since), and self-heals any seed/migrated
+      // data that was left in an inconsistent state.
+      Object.keys(state.engagements).forEach(engId => {
+        state = applyAutoStatus(state, engId);
+      });
+      await saveState(state);
+      return state;
+    }
     await saveState(SEED_DATA);
     return SEED_DATA;
   } catch {
@@ -112,26 +139,44 @@ function applyAutoStatus(state: AppState, engagementId: string): AppState {
   const atRisk = hasRiskConditions(state, engagementId);
 
   if (atRisk && eng.status !== 'At Risk') {
-    // Entering risk state — remember what to revert to
-    const updated: Engagement = {
-      ...eng,
-      manualStatus: eng.statusIsAuto ? eng.manualStatus : eng.status,
-      status: 'At Risk',
-      statusIsAuto: true,
-      updatedAt: new Date().toISOString(),
+    // Entering risk state — remember what to revert to.
+    // Guard: never store 'At Risk' itself as the fallback (can happen if this
+    // function runs twice in a row before state settles).
+    const fallback = eng.statusIsAuto ? eng.manualStatus : eng.status;
+    return {
+      ...state,
+      engagements: {
+        ...state.engagements,
+        [engagementId]: {
+          ...eng,
+          manualStatus: fallback === 'At Risk' ? 'In Progress' : fallback,
+          status: 'At Risk',
+          statusIsAuto: true,
+          updatedAt: new Date().toISOString(),
+        },
+      },
     };
-    return { ...state, engagements: { ...state.engagements, [engagementId]: updated } };
   }
 
   if (!atRisk && eng.statusIsAuto && eng.status === 'At Risk') {
-    // Risk cleared — revert to the manual status
-    const updated: Engagement = {
-      ...eng,
-      status: eng.manualStatus,
-      statusIsAuto: false,
-      updatedAt: new Date().toISOString(),
+    // Risk cleared — revert to the manual status.
+    // Guard: if manualStatus somehow ended up as 'At Risk' or 'Complete'
+    // (shouldn't happen, but defensive), fall back to 'In Progress'.
+    const revertTo = (eng.manualStatus === 'At Risk' || eng.manualStatus === 'Complete')
+      ? 'In Progress'
+      : eng.manualStatus;
+    return {
+      ...state,
+      engagements: {
+        ...state.engagements,
+        [engagementId]: {
+          ...eng,
+          status: revertTo,
+          statusIsAuto: false,
+          updatedAt: new Date().toISOString(),
+        },
+      },
     };
-    return { ...state, engagements: { ...state.engagements, [engagementId]: updated } };
   }
 
   return state;

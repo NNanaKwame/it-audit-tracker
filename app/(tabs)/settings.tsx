@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, TouchableOpacity,
   Switch, Alert, ActivityIndicator,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useAudit } from '../../src/store/AuditContext';
 import { Colors, FontSize, Radius, Spacing } from '../../src/constants/theme';
 import {
@@ -14,12 +15,22 @@ import {
   getScheduledNotifications,
 } from '../../src/utils/notifications';
 
+const TAPS_TO_UNLOCK = 10;
+const TAP_RESET_MS = 2000;
+
 export default function SettingsScreen() {
-  const { state, getAllSummaries, clearAllData, getOverdueEvidence } = useAudit();
+  const router = useRouter();
+  const { state, clearAllData, getOverdueEvidence } = useAudit();
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+
+  // Easter egg: tap the version row 10 times to reveal Developer Options
+  const [tapCount, setTapCount] = useState(0);
+  const lastTapRef = useRef<number>(0);
+
+  const appVersion = Constants.expoConfig?.version ?? 'Unknown';
 
   const totalEngagements = Object.keys(state.engagements).length;
   const totalControls = Object.keys(state.controls).length;
@@ -79,23 +90,6 @@ export default function SettingsScreen() {
     Alert.alert('Rescheduled', `${count} deadline reminder${count !== 1 ? 's' : ''} are now active.`);
   }
 
-  async function handleTestNotification() {
-    const granted = await requestNotificationPermissions();
-    if (!granted) {
-      Alert.alert('Permission Required', 'Please enable notifications for IT Audit Tracker in your device Settings.');
-      return;
-    }
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '✅ Test Notification',
-        body: 'If you can see this, notifications are working correctly.',
-        sound: 'default',
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
-    });
-    Alert.alert('Test Scheduled', 'A test notification will appear in 5 seconds. You can lock your phone or switch apps to see it.');
-  }
-
   function handleClearAll() {
     Alert.alert(
       'Clear All Data?',
@@ -113,6 +107,27 @@ export default function SettingsScreen() {
         },
       ]
     );
+  }
+
+  function handleVersionTap() {
+    const now = Date.now();
+    if (now - lastTapRef.current > TAP_RESET_MS) {
+      // Too slow — reset the counter
+      setTapCount(1);
+    } else {
+      const next = tapCount + 1;
+      setTapCount(next);
+      if (next >= TAPS_TO_UNLOCK) {
+        setTapCount(0);
+        router.push('/dev-pin' as any);
+        return;
+      }
+      // Gentle hint near the end so it doesn't feel broken
+      if (next === TAPS_TO_UNLOCK - 3) {
+        Alert.alert('Almost there', `${TAPS_TO_UNLOCK - next} more taps to unlock developer options.`);
+      }
+    }
+    lastTapRef.current = now;
   }
 
   return (
@@ -194,14 +209,6 @@ export default function SettingsScreen() {
             </View>
           </>
         )}
-        <Divider />
-        <TouchableOpacity style={styles.settingRow} onPress={handleTestNotification}>
-          <View style={styles.settingInfo}>
-            <MaterialCommunityIcons name="flask-outline" size={20} color={Colors.purpleDark} />
-            <Text style={styles.settingLabel}>Send Test Notification</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={18} color={Colors.textHint} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.noteRow}>
@@ -227,7 +234,9 @@ export default function SettingsScreen() {
       {/* About */}
       <Text style={styles.sectionTitle}>About</Text>
       <View style={styles.card}>
-        <StatRow icon="information-outline" label="App Version" value="1.1.0" />
+        <TouchableOpacity activeOpacity={0.6} onPress={handleVersionTap}>
+          <StatRow icon="information-outline" label="App Version" value={appVersion} />
+        </TouchableOpacity>
         <Divider />
         <StatRow icon="shield-lock-outline" label="SDK" value="Expo SDK 54" />
         <Divider />

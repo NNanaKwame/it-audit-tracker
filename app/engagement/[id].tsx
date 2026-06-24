@@ -10,7 +10,7 @@ import { useAudit } from '../../src/store/AuditContext';
 import { Badge } from '../../src/components/Badge';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { Colors, DOMAIN_COLORS, FontSize, Radius, Spacing } from '../../src/constants/theme';
-import { ControlDomain, EvidenceStatus, Control, Evidence, Finding, Milestone } from '../../src/types';
+import { ControlDomain, EvidenceStatus, Control, Evidence, Finding, Milestone, EngagementStatus } from '../../src/types';
 import { exportEngagementPDF } from '../../src/utils/exportPDF';
 import { getMilestoneStatus } from '../../src/store/auditStore';
 
@@ -29,7 +29,7 @@ export default function EngagementDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     loading, getSummary, state,
-    updateControl, updateEvidence, updateFinding, updateMilestone,
+    updateControl, updateEvidence, updateFinding, updateMilestone, updateEngagement,
     deleteControl, deleteEvidence, deleteFinding, deleteMilestone,
   } = useAudit();
   const { showActionSheetWithOptions } = useActionSheet();
@@ -192,6 +192,29 @@ export default function EngagementDetail() {
     );
   }
 
+  function openStatusMenu() {
+    const options: (EngagementStatus | 'Cancel')[] = ['Kickoff', 'In Progress', 'On Track', 'At Risk', 'Complete', 'Cancel'];
+    showActionSheetWithOptions(
+      {
+        options,
+        cancelButtonIndex: 5,
+        title: 'Set Engagement Status',
+        message: engagement.statusIsAuto
+          ? 'Currently auto-flagged At Risk. Choosing a status here sets it manually and clears the auto-flag.'
+          : 'Choose the current status for this engagement.',
+        containerStyle: { borderRadius: 16 },
+        titleTextStyle: { fontWeight: '600', fontSize: 15, color: Colors.textPrimary },
+        messageTextStyle: { fontSize: 13, color: Colors.textSecondary },
+      },
+      (index) => {
+        if (index === undefined || index === 5) return;
+        const chosen = options[index];
+        if (chosen === 'Cancel') return;
+        updateEngagement(engagement.id, { status: chosen, statusIsAuto: false });
+      }
+    );
+  }
+
   return (
     <>
       <Stack.Screen
@@ -216,12 +239,12 @@ export default function EngagementDetail() {
               <Text style={styles.clientName}>{engagement.clientName}</Text>
               <Text style={styles.meta}>{engagement.fiscalYear} · Lead: {engagement.leadAuditor}</Text>
             </View>
-            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <TouchableOpacity style={{ alignItems: 'flex-end', gap: 4 }} onPress={openStatusMenu}>
               <Badge label={engagement.status} />
               {engagement.statusIsAuto && (
-                <Text style={styles.autoFlagText}>Auto-flagged</Text>
+                <Text style={styles.autoFlagText}>Auto-flagged · tap to override</Text>
               )}
-            </View>
+            </TouchableOpacity>
           </View>
           <View style={styles.statsRow}>
             <View style={styles.stat}>

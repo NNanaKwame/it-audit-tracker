@@ -59,6 +59,14 @@ export default function RootLayout() {
             name="engagement/timeline/generate"
             options={{ title: 'Standard Phases', presentation: 'modal' }}
           />
+          <Stack.Screen
+            name="dev-pin"
+            options={{ title: 'Enter PIN', presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="developer-options"
+            options={{ title: 'Developer Options' }}
+          />
         </Stack>
       </AuditProvider>
     </ActionSheetProvider>
